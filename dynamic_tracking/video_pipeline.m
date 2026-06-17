@@ -9,7 +9,6 @@ FPS = 30;
 DT = 1 / FPS;
 
 %% Batch Video Processing Setup
-% Scans current directory for all AVI videos
 videoFiles = dir('*.avi'); 
 
 if isempty(videoFiles)
@@ -26,16 +25,16 @@ for vIdx = 1:length(videoFiles)
     tic
     vidReader = VideoReader(currentVideo);
     
-    % Generate output string name automatically
-    [~, name, ext] = fileparts(currentVideo);
-    outputName = ['processed_empirical_', name, ext];
+    % Generate output string name automatically (Using standard Motion JPEG AVI)
+    [~, name, ~] = fileparts(currentVideo);
+    outputName = ['processed_empirical_', name, '.avi'];
     
     outputVideo = VideoWriter(outputName, 'Motion JPEG AVI');
     outputVideo.FrameRate = FPS;
     open(outputVideo);
     
     % Initialize Live Visualizer Window Frame
-    hFig = figure('Name', ['Tracking Live Feed: ', currentVideo], 'NumberTitle', 'off');
+    hFig = figure('Name', ['Tracking Live Feed: ', currentVideo], 'NumberTitle', 'off', 'Visible', 'on');
     
     %% Data Storage Registers
     positions = [];
@@ -91,6 +90,8 @@ for vIdx = 1:length(videoFiles)
                 Vz = (positions(end,3) - positions(end-1,3)) / DT;
                 V = sqrt(Vx^2 + Vy^2 + Vz^2);
                 velocities = [velocities; Vx, Vy, Vz, V];
+            else
+                V = 0;
             end
             
             %% Square Matrix Tracking Verification
@@ -112,25 +113,36 @@ for vIdx = 1:length(videoFiles)
                 end
             end
             
-            %% Multi-Channel Structural Annotations
-            img = insertShape(img, 'Circle', [circleCenter detected_radius], 'Color', 'red', 'LineWidth', 3);
-            img = insertText(img, [30 50],  sprintf('Z: %.2f m', Z), 'FontSize', 35, 'TextColor', 'yellow', 'BoxColor', 'black');
-            img = insertText(img, [30 100], sprintf('X: %.2f m', X), 'FontSize', 35, 'TextColor', 'yellow', 'BoxColor', 'black');
-            img = insertText(img, [30 150], sprintf('Y: %.2f m', Y), 'FontSize', 35, 'TextColor', 'yellow', 'BoxColor', 'black');
-            img = insertText(img, [30 200], sprintf('Radius: %.1f px', detected_radius), 'FontSize', 35, 'TextColor', 'green', 'BoxColor', 'black');
+            %% Native Rendering Using Standard Figure Plotting (Bypasses Computer Vision Toolbox)
+            % Display base frame matrix
+            imshow(img);
+            hold on;
             
-            if ~isempty(velocities)
-                img = insertText(img, [30 250], sprintf('V: %.2f m/s', V), 'FontSize', 35, 'TextColor', 'cyan', 'BoxColor', 'black');
-            end
+            % Render Target Ring Overlay (Red)
+            th = 0:pi/50:2*pi;
+            xunit = detected_radius * cos(th) + circleCenter(1);
+            yunit = detected_radius * sin(th) + circleCenter(2);
+            plot(xunit, yunit, 'r-', 'LineWidth', 2);
+            
+            % Render Square Target Overlay (Green)
             if squareDetected
-                img = insertShape(img, 'Rectangle', bestSquare, 'Color', 'green', 'LineWidth', 3);
+                rectangle('Position', bestSquare, 'EdgeColor', 'g', 'LineWidth', 2);
             end
             
-            %% Visual Display Feedback & Storage Routines
-            imshow(img); % Displays current calculated frame on display screen
-            drawnow;     % Forces MATLAB to refresh display instantly
+            % On-Screen Telemetry Annotations using core text properties
+            text(20, 30,  sprintf('Z: %.2f m', Z), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
+            text(20, 60,  sprintf('X: %.2f m', X), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
+            text(20, 90,  sprintf('Y: %.2f m', Y), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
+            text(20, 120, sprintf('Radius: %.1f px', detected_radius), 'Color', 'green', 'FontSize', 14, 'BackgroundColor', 'black');
+            text(20, 150, sprintf('V: %.2f m/s', V), 'Color', 'cyan', 'FontSize', 14, 'BackgroundColor', 'black');
             
-            writeVideo(outputVideo, img);
+            drawnow;
+            
+            % Capture annotated figure frame back into matrix for the output video
+            annotatedFrame = getframe(gca);
+            writeVideo(outputVideo, annotatedFrame.cdata);
+            
+            hold off;
         end
     end
     
