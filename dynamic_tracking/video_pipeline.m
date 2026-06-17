@@ -114,7 +114,6 @@ for vIdx = 1:length(videoFiles)
             end
             
             %% Native Rendering Using Standard Figure Plotting (Bypasses Computer Vision Toolbox)
-            % Display base frame matrix
             imshow(img);
             hold on;
             
