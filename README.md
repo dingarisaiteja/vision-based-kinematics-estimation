@@ -1,3 +1,4 @@
+[![Open in MATLAB Online](https://www.mathworks.com/images/responsive/global/open-in-matlab-online.svg)](https://matlab.mathworks.com/open/github/v1?repo=dingarisai/vision-based-kinematics-estimation)
 # UAV Vision-Based Kinematics Estimation Framework
 
 This repository hosts the software architecture developed for autonomous quadcopter landing operations within GPS-denied environments. By deploying low-latency image processing pipelines paired with empirical scaling models, the framework accurately estimates multi-axis positions and linear velocities using a single downward-facing monocular camera.
