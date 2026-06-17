@@ -30,7 +30,7 @@ for vIdx = 1:length(videoFiles)
     [~, name, ext] = fileparts(currentVideo);
     outputName = ['processed_empirical_', name, ext];
     
-    outputVideo = VideoWriter(outputName, 'MPEG-4');
+    outputVideo = VideoWriter(outputName, 'Motion JPEG AVI');
     outputVideo.FrameRate = FPS;
     open(outputVideo);
     
