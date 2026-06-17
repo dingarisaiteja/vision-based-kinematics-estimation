@@ -25,7 +25,7 @@ for vIdx = 1:length(videoFiles)
     tic
     vidReader = VideoReader(currentVideo);
     
-    % Generate output string name automatically (Using standard Motion JPEG AVI)
+    % Generate output string name automatically
     [~, name, ~] = fileparts(currentVideo);
     outputName = ['processed_empirical_', name, '.avi'];
     
@@ -33,18 +33,16 @@ for vIdx = 1:length(videoFiles)
     outputVideo.FrameRate = FPS;
     open(outputVideo);
     
-    % Initialize Live Visualizer Window Frame
-    hFig = figure('Name', ['Tracking Live Feed: ', currentVideo], 'NumberTitle', 'off', 'Visible', 'on');
-    
     %% Data Storage Registers
     positions = [];
     velocities = [];
     detected_radii = [];
     
     %% Processing Loop
-    while hasFrame(vidReader) && ishandle(hFig)
+    while hasFrame(vidReader)
         frame = readFrame(vidReader);
         img = imresize(frame, 0.5);
+        [h, w, ~] = size(img);
         hsvImage = rgb2hsv(img);
         
         % Red mask chrominance bounds
@@ -71,8 +69,8 @@ for vIdx = 1:length(videoFiles)
             detected_radii = [detected_radii; detected_radius];
             
             % Image spatial sizing arrays
-            imgCenterX = size(img, 2) / 2;
-            imgCenterY = size(img, 1) / 2;
+            imgCenterX = w / 2;
+            imgCenterY = h / 2;
             delta_x = circleCenter(1) - imgCenterX;
             delta_y = circleCenter(2) - imgCenterY;
             
@@ -113,44 +111,42 @@ for vIdx = 1:length(videoFiles)
                 end
             end
             
-            %% Native Rendering Using Standard Figure Plotting (Bypasses Computer Vision Toolbox)
-            % Display base frame matrix
-            imshow(img);
-            hold on;
+            %% Directly Draw Over Pixels (Guarantees Perfect Video Output Matrix Size)
+            cx = round(circleCenter(1)); 
+            cy = round(circleCenter(2));
             
-            % Render Target Ring Overlay (Red)
-            th = 0:pi/50:2*pi;
-            xunit = detected_radius * cos(th) + circleCenter(1);
-            yunit = detected_radius * sin(th) + circleCenter(2);
-            plot(xunit, yunit, 'r-', 'LineWidth', 2);
-            
-            % Render Square Target Overlay (Green)
-            if squareDetected
-                rectangle('Position', bestSquare, 'EdgeColor', 'g', 'LineWidth', 2);
+            % Draw a solid 9x9 pixel RED square marker at the center of the circle
+            if cy > 5 && cy < h-5 && cx > 5 && cx < w-5
+                img(cy-4:cy+4, cx-4:cx+4, 1) = 255; % Red channel max
+                img(cy-4:cy+4, cx-4:cx+4, 2:3) = 0; % Clear blue/green channels
             end
             
-            % On-Screen Telemetry Annotations using core text properties
-            text(20, 30,  sprintf('Z: %.2f m', Z), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
-            text(20, 60,  sprintf('X: %.2f m', X), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
-            text(20, 90,  sprintf('Y: %.2f m', Y), 'Color', 'yellow', 'FontSize', 14, 'BackgroundColor', 'black');
-            text(20, 120, sprintf('Radius: %.1f px', detected_radius), 'Color', 'green', 'FontSize', 14, 'BackgroundColor', 'black');
-            text(20, 150, sprintf('V: %.2f m/s', V), 'Color', 'cyan', 'FontSize', 14, 'BackgroundColor', 'black');
+            % Draw a solid 9x9 pixel GREEN square marker if nested target square is confirmed
+            if squareDetected
+                scx = round(bestSquare(1) + bestSquare(3)/2);
+                scy = round(bestSquare(2) + bestSquare(4)/2);
+                if scy > 5 && scy < h-5 && scx > 5 && scx < w-5
+                    img(scy-4:scy+4, scx-4:scx+4, 1) = 0;
+                    img(scy-4:scy+4, scx-4:scx+4, 2) = 255; % Green channel max
+                    img(scy-4:scy+4, scx-4:scx+4, 3) = 0;
+                end
+            end
             
-            drawnow;
+            % Print real-time values smoothly inside the command terminal instead of window canvas
+            if rem(length(detected_radii), 15) == 0
+                fprintf('Frame %d Logged -> Coordinates Estimated: X=%.2fm | Y=%.2fm | Z=%.2fm | Speed=%.2fm/s\n', ...
+                    length(detected_radii), X, Y, Z, V);
+            end
             
-            % Capture annotated figure frame back into matrix for the output video
-            annotatedFrame = getframe(gca);
-            writeVideo(outputVideo, annotatedFrame.cdata);
-            
-            hold off;
+            % Write frame directly (unaltered resolution size)
+            writeVideo(outputVideo, img);
         end
     end
     
     %% Compute & Display Summary Telemetry Statistics
     close(outputVideo);
-    if ishandle(hFig), close(hFig); end
     
-    fprintf('\n--- Performance Log: %s ---\n', currentVideo);
+    fprintf('\n--- Performance Log Summary: %s ---\n', currentVideo);
     if ~isempty(velocities)
         fprintf('Avg Vx: %.2f m/s | Avg Vy: %.2f m/s | Avg Vz: %.2f m/s\n', mean(velocities(:,1)), mean(velocities(:,2)), mean(velocities(:,3)));
         fprintf('Compiled Mean Translation Velocity Speed: %.2f m/s\n', mean(velocities(:,4)));
